@@ -1,2 +1,11 @@
 .DS_Store
 **/.DS_Store
+.idea/
+__pycache__/
+input/DAT_Spa.csv
+input/DAT_Eng.csv
+model/SBW-vectors-300-min5.txt
+model/glove.840B.300d.txt
+output/DAT_Eng/
+output/DAT_Spa/
+try_spark.py

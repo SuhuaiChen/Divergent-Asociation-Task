@@ -1,76 +1,96 @@
 import math
 import os
-
 import dat
 import pandas as pd
-# GloVe model from https://nlp.stanford.edu/projects/glove/
-# Spanish Word2Vec model from https://crscardellino.ar/SBWCE/
 
 # preset parameters
 INPUT_CSV_DELIMITER = ','
 OUTPUT_CSV_DELIMITER = ','
 
-# load source file and model
-fname = input("enter input file name: ")
-path = 'input/'+fname
-lang = input("EN or ES: ")
-df = pd.read_csv(path, delimiter=INPUT_CSV_DELIMITER)
-num_rows = len(df.index)
-print('loading input...')
-print('number of columns: ', len(df.columns))
-print('number of rows: ', num_rows)
-print(df.to_string())
-print('loading model...')
-model = dat.Model(lang=lang)
+def DAT_Task():
+    # choose language: you should write it in the terminal and then press enter
+    lang = input("Choose a language. Please type EN or ES, then press enter: ")
+    if lang == "EN":
+        fname = "DAT_Eng"
+    elif lang == "ES":
+        fname = "DAT_Spa"
+    else:
+        raise Exception("lang should be either EN or ES")
 
-# create output directory
-output_dir = 'output/%s/%s/' % (lang, fname)
-os.makedirs(output_dir, exist_ok=True)
-normal_dir = output_dir + 'normal/'
-os.makedirs(normal_dir, exist_ok=True)
-pivot_dir = output_dir + 'pivot/'
-os.makedirs(pivot_dir, exist_ok=True)
+    # read input csv
+    path = 'input/' + fname + '.csv'
+    df = pd.read_csv(path, delimiter=INPUT_CSV_DELIMITER)
+    num_rows = len(df.index)
+    print(f'loading input/{fname}.csv')
+    print('number of columns: ', len(df.columns))
+    print('number of rows: ', num_rows)
+    print(df.to_string())
 
-# output a csv of cosine distance between each pair of the words
-# high cosine distance indicates low relevance
-dat_column_values = []
-for i in range(num_rows):
-    row_id = df.iloc[i, 0]
-    row = df.iloc[i, 1:]
-    total_scores, scores_dict = model.dat(row)
+    # load model
+    print('loading model...')
+    model = dat.Model(lang=lang)
 
-    dat_column_values.append(total_scores)
-    # convert dict to dataframe
-    individual_df = pd.DataFrame([i, j, v]
-                                 for i in scores_dict.keys()
-                                 for j, v in scores_dict[i].items())
-    individual_df.columns = ['word1', 'word2', 'cosine distance * 100']
-    individual_df.to_csv(normal_dir+str(row_id)+'.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+    # create output directory
+    output_dir = f'output/{fname}/'
+    os.makedirs(output_dir, exist_ok=True)
+    normal_dir = output_dir + 'normal/'
+    os.makedirs(normal_dir, exist_ok=True)
+    pivot_dir = output_dir + 'pivot/'
+    os.makedirs(pivot_dir, exist_ok=True)
 
-    # output a pivot table just as the figures shown in the Olson paper
-    individual_df_pivot = pd.DataFrame(columns=scores_dict.keys(), index=scores_dict.keys())
-    used = []
-    for word1 in scores_dict.keys():
-        used.append(word1)
-        col = []
-        for word2 in scores_dict.keys():
-            # if the score between word1 and word2 is already calculated, we should skip it
-            if word2 in used:
-                col.append(math.nan)
-            else:
-                col.append(scores_dict[word1][word2])
-        individual_df_pivot[word1] = col
+    # output a csv of cosine distance between each pair of the words
+    # high cosine distance indicates low relevance
+    dat_column_values = []
+    invalid_word_column_values = []
+    for i in range(num_rows):
+        row_id = df.iloc[i, 0]
+        row = df.iloc[i, 1:].to_list()
 
-    individual_df_pivot.to_csv(pivot_dir+str(row_id)+'.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+        # get average scores number, scores dict, and invalid words of the current participant
+        total_scores, scores_dict, invalid_words = model.dat(row)
+        dat_column_values.append(total_scores)
+        invalid_word_column_values.append(invalid_words)
 
-# output overview
-df['dat'] = dat_column_values
-print('-'*60)
-print('printing overview...')
-print(df.to_string())
+        # if total_scores == 0, it means the answer of the participant contains invalid words
+        if total_scores == 0:
+            continue
 
-df.to_csv(output_dir+fname+'.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+        # convert scores dict to dataframe
+        individual_df = pd.DataFrame([i, j, v]
+                                     for i in scores_dict.keys()
+                                     for j, v in scores_dict[i].items())
+        individual_df.columns = ['word1', 'word2', 'cosine distance * 100']
 
+        # save the normal word pair scores table
+        individual_df.to_csv(normal_dir + str(row_id) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+
+        # output a pivot table just as the figures shown in the Olson paper
+        individual_df_pivot = pd.DataFrame(columns=scores_dict.keys(), index=scores_dict.keys())
+        used = []
+        for word1 in scores_dict.keys():
+            used.append(word1)
+            col = []
+            for word2 in scores_dict.keys():
+                # if the score between word1 and word2 is already calculated, we should skip it
+                if word2 in used:
+                    col.append(math.nan)
+                else:
+                    col.append(scores_dict[word1][word2])
+            individual_df_pivot[word1] = col
+
+        # save the scores in a pivot table
+        individual_df_pivot.to_csv(pivot_dir + str(row_id) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+
+    # output the overview of all the candidates.
+    # It keeps the original input and appends DAT scores and invalid words at the end
+    df['dat'] = dat_column_values
+    df['invalid words'] = invalid_word_column_values
+    print('-' * 60)
+    print('printing overview...')
+    print(df.to_string())
+
+    # save the overview result
+    df.to_csv(output_dir + fname + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
 
 '''
 # Compound words are translated into words found in the model
