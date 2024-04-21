@@ -2,7 +2,7 @@ run:
 	python3 examples.py
 
 install: glove.840B.300d.txt SBW-vectors-300-min5.txt
-	python3 -m pip install numpy scipy pandas
+	python3 -m pip install numpy scipy pandas tqdm
 
 glove.840B.300d.txt:
 	# Download from Stanford NLP GloVe page (Pennington et al.)

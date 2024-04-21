@@ -16,7 +16,7 @@ Second way: Run the following commands
 
 ```
 # install python packages
-$ python3 -m pip install numpy scipy pandas
+$ python3 -m pip install numpy scipy pandas tqdm
 
 # install English glove model
 $ wget https://nlp.stanford.edu/data/glove.840B.300d.zip

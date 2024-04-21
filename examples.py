@@ -7,6 +7,7 @@ import pandas as pd
 INPUT_CSV_DELIMITER = ','
 OUTPUT_CSV_DELIMITER = ','
 
+
 def DAT_Task():
     # choose language: you should write it in the terminal and then press enter
     lang = input("Choose a language. Please type EN or ES, then press enter: ")
@@ -91,6 +92,11 @@ def DAT_Task():
 
     # save the overview result
     df.to_csv(output_dir + fname + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+
+
+if __name__ == '__main__':
+    DAT_Task()
+
 
 '''
 # Compound words are translated into words found in the model

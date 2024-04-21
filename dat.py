@@ -6,7 +6,7 @@ import re
 import numpy
 import scipy.spatial.distance
 from tqdm import tqdm
-from unidecode import unidecode
+from utils import normalize
 
 
 class Model:
@@ -38,7 +38,7 @@ class Model:
             for i, line in tqdm(enumerate(f)):
                 token = line.split(" ")
                 word = token[0]
-                word = unidecode(word)
+                word = normalize(word)
                 if lang == "EN" and word not in words:
                     # only applying the dictionary filter on the English words because I haven't found a complete spanish dictionary
                     # for example the current spanish dictionary does not have ojo and computadora
