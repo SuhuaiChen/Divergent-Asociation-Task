@@ -8,13 +8,13 @@ INPUT_CSV_DELIMITER = ','
 OUTPUT_CSV_DELIMITER = ','
 
 
-def DAT_Task():
+def distance_matrix(task_name):
     # choose language: you should write it in the terminal and then press enter
     lang = input("Choose a language. Please type EN or ES, then press enter: ")
     if lang == "EN":
-        fname = "DAT_Eng"
+        fname = f"{task_name}_Eng"
     elif lang == "ES":
-        fname = "DAT_Spa"
+        fname = f"{task_name}_Spa"
     else:
         raise Exception("lang should be either EN or ES")
 
@@ -22,6 +22,7 @@ def DAT_Task():
     path = 'input/' + fname + '.csv'
     df = pd.read_csv(path, delimiter=INPUT_CSV_DELIMITER)
     num_rows = len(df.index)
+    num_cols = len(df.columns)
     print(f'loading input/{fname}.csv')
     print('number of columns: ', len(df.columns))
     print('number of rows: ', num_rows)
@@ -43,18 +44,18 @@ def DAT_Task():
     # high cosine distance indicates low relevance
     dat_column_values = []
     invalid_word_column_values = []
+
+    # a list of list to store FF values
+    ff_values = []
+
     for i in range(num_rows):
         row_id = df.iloc[i, 0]
-        row = df.iloc[i, 1:].to_list()
+        input_words = df.iloc[i, 1:].to_list()
 
         # get average scores number, scores dict, and invalid words of the current participant
-        total_scores, scores_dict, invalid_words = model.dat(row)
+        total_scores, scores_dict, invalid_words = model.dat(input_words)
         dat_column_values.append(total_scores)
         invalid_word_column_values.append(invalid_words)
-
-        # if total_scores == 0, it means the answer of the participant contains invalid words
-        if total_scores == 0:
-            continue
 
         # convert scores dict to dataframe
         individual_df = pd.DataFrame([i, j, v]
@@ -66,12 +67,12 @@ def DAT_Task():
         individual_df.to_csv(normal_dir + str(row_id) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
 
         # output a pivot table just as the figures shown in the Olson paper
-        individual_df_pivot = pd.DataFrame(columns=scores_dict.keys(), index=scores_dict.keys())
+        individual_df_pivot = pd.DataFrame(columns=input_words, index=input_words)
         used = []
-        for word1 in scores_dict.keys():
+        for word1 in input_words:
             used.append(word1)
             col = []
-            for word2 in scores_dict.keys():
+            for word2 in input_words:
                 # if the score between word1 and word2 is already calculated, we should skip it
                 if word2 in used:
                     col.append(math.nan)
@@ -82,20 +83,53 @@ def DAT_Task():
         # save the scores in a pivot table
         individual_df_pivot.to_csv(pivot_dir + str(row_id) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
 
-    # output the overview of all the candidates.
-    # It keeps the original input and appends DAT scores and invalid words at the end
-    df['dat'] = dat_column_values
-    df['invalid words'] = invalid_word_column_values
-    print('-' * 60)
-    print('printing overview...')
-    print(df.to_string())
+        # calculate ff value
+        ff_value = individual_df_pivot.mean(axis=1, numeric_only=True).round(3).to_list()
+        ff_values.append(ff_value)
 
-    # save the overview result
-    df.to_csv(output_dir + fname + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+    if task_name == "DAT":
+        # create the DAT overview of all the candidates.
+        # It keeps the original input and appends DAT scores and invalid words at the end
+        df['dat'] = dat_column_values
+        df['invalid words'] = invalid_word_column_values
+        print('-' * 60)
+        print('printing overview...')
+        print(df.to_string())
+        # save the overview result
+        df.to_csv(output_dir + fname + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+
+    else:
+        # create FF serial flow for all the candidates
+        ff_lists = []
+        index = []
+        for i in range(num_rows):
+            row_id = df.iloc[i, 0]
+            input_words = df.iloc[i, 1:].to_list()
+            ff_lists.append(input_words+["WORD COUNT", "NAs"])
+            index.append(str(row_id))
+            ff_lists.append(ff_values[i]+[len(input_words), invalid_word_column_values[i]])
+            index.append(math.nan)
+            ff_lists.append([None for _ in range(num_cols+1)])
+            index.append(math.nan)
+            ff_lists.append([None for _ in range(num_cols+1)])
+            index.append(math.nan)
+
+        df = pd.DataFrame(ff_lists, index=index, columns=[None for _ in range(num_cols+1)])
+        df.to_csv(output_dir + fname + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+
+    print("Done")
+
+def DAT_Task():
+    distance_matrix(task_name="DAT")
+
+
+def FF_Task():
+    distance_matrix(task_name="FF")
 
 
 if __name__ == '__main__':
     DAT_Task()
+    # FF_Task()
 
 
 '''

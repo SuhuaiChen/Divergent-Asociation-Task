@@ -44,14 +44,19 @@ class Model:
                     # for example the current spanish dictionary does not have ojo and computadora
                     continue
                 vector = numpy.asarray(token[1:], "float32")
-                vectors[word] = vector
+
+                # The words in spanish model text are ordered from most frequent to least frequent
+                # We only use the most frequent word if there are duplicate words
+                if word not in vectors:
+                    vectors[word] = vector
+
         print("word vectors loaded")
         self.vectors = vectors
         self.lang = lang
         self.encoding = "utf-8"
 
     def validate(self, word):
-        """Clean up word and find best candidate to use"""
+        """Clean up word and find the best candidate to use"""
 
         # Strip unwanted characters
         clean = re.sub(r"[^a-zA-ZáéíñóúüÁÉÍÑÓÚÜ\- ]+", "", word).lower().strip()
@@ -62,7 +67,7 @@ class Model:
         # "valid" -> ["valid"]
         # "cul de sac" -> ["cul-de-sac", "culdesac"]
         # "top-hat" -> ["top-hat", "tophat"]
-        candidates = []
+        candidates = [clean]
         if " " in clean:
             candidates.append(re.sub(r" +", "-", clean))
             candidates.append(re.sub(r" +", "", clean))
@@ -77,13 +82,9 @@ class Model:
 
     def distance(self, word1, word2):
         """Compute cosine distance (0 to 2) between two words"""
-        try:
-            return scipy.spatial.distance.cosine(self.vectors.get(word1), self.vectors.get(word2))
-        except Exception as e:
-            print(e)
-            return math.nan
+        return round(float(scipy.spatial.distance.cosine(self.vectors.get(word1), self.vectors.get(word2))), 3)
 
-    def dat(self, words, minimum=10):
+    def dat(self, words):
 
         # add a nested dictionary to save individual scores
         outer = {}
@@ -93,38 +94,40 @@ class Model:
 
         """Compute DAT score"""
         # Keep only valid unique words
-        uniques = []
+        words_validated = []
         for word in words:
             valid = self.validate(word)
-            if valid and valid not in uniques:
-                uniques.append(valid)
+            if valid:
+                words_validated.append(valid)
             else:
+                words_validated.append(word)
                 print(word + " is not a valid word")
                 invalid_words.append(word)
 
         invalid_words = ','.join(invalid_words)
 
-        # Keep subset of words
-        if len(uniques) >= minimum:
-            subset = uniques[:minimum]
-        else:
-            # Not enough valid words
-            return 0, None, invalid_words
-
         # Compute distances between each pair of words. Enumerate the combinations
         distances = []
-        for i in range(minimum):
+        for i in range(len(words)):
             inner = {}
-            word1 = subset[i]
-            for j in range(i+1, minimum):
-                word2 = subset[j]
-                dist = int(self.distance(word1, word2) * 100)
-                distances.append(dist)
+            word1 = words[i]
+            word1_validated = words_validated[i]
+            for j in range(i+1, len(words)):
+                word2 = words[j]
+                word2_validated = words_validated[j]
+                try:
+                    dist = self.distance(word1_validated, word2_validated)
+                    distances.append(dist)
+                except:
+                    dist = math.nan
+
                 inner[word2] = dist
 
             outer[word1] = inner
 
+        score = 0 if len(distances) == 0 else int((sum(distances) / len(distances))*100)
+
         # Return the DAT score (average semantic distance multiplied by 100)
         # Return the nested dictionary 'outer', which has all the pair-wise word distances
         # Also return the invalid words for diagnostics
-        return int(sum(distances) / len(distances)), outer, invalid_words
+        return score, outer, invalid_words

@@ -15,6 +15,7 @@ letter_map = {
         # 'Ñ': 'N',
     }
 
+
 def normalize(text):
     new_text = ""
     for s in text:
