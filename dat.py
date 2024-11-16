@@ -1,48 +1,49 @@
 """Compute score for Divergent Association Task,
-a quick and simple measure of creativity
-(Copyright 2021 Jay Olson; see LICENSE)"""
+a quick and simple measure of creativity"""
+
 import math
 import re
 import numpy
 import scipy.spatial.distance
 from tqdm import tqdm
-from utils import normalize
-
 
 class Model:
     """Create model to compute DAT"""
 
-    def __init__(self, pattern="^[a-z][a-z-]*[a-z]$", lang='EN'):
+    def __init__(self, lang='EN'):
         """Join model and words matching pattern in dictionary"""
         if lang == "EN":
             model = "model/glove.840B.300d.txt"
-            dictionary = "model/words.txt"
+            # dictionary = "model/words.txt"
+            self.encoding = "utf-8"
         elif lang == "ES":
             model = "model/SBW-vectors-300-min5.txt"
-            dictionary = "model/spanishWords.txt"
+            # dictionary = "model/spanishWords.txt"
+            self.encoding = "utf-8"
         else:
             raise Exception("Only EN and ES are supported")
 
         # Keep unique words matching pattern from file
         # The diccionary was used to make sure that the words are from that language. However, it tured
-        words = set()
-        with open(dictionary, "r", encoding="utf-8") as f:
-            for line in tqdm(f):
-                if re.match(pattern, line):
-                    words.add(line.rstrip("\n"))
-        print("dictionary loaded")
+        # words = set()
+        # with open(dictionary, "r", encoding=self.encoding) as f:
+        #     for line in tqdm(f):
+        #         if re.match(pattern, line):
+        #             words.add(line.rstrip("\n"))
+        # print("dictionary loaded")
 
         # Join words with model
         vectors = {}
-        with open(model, "r", encoding="utf-8") as f:
+        with open(model, "r", encoding=self.encoding) as f:
             for i, line in tqdm(enumerate(f)):
                 token = line.split(" ")
-                word = token[0]
-                word = normalize(word)
-                if lang == "EN" and word not in words:
-                    # only applying the dictionary filter on the English words because I haven't found a complete spanish dictionary
-                    # for example the current spanish dictionary does not have ojo and computadora
-                    continue
+                word = token[0].lower()
+
+                # word = normalize(word)
+                # if lang == "EN" and word not in words:
+                #     # only applying the dictionary filter on the English words because I haven't found a complete spanish dictionary
+                #     # for example the current spanish dictionary does not have ojo and computadora
+                #     continue
                 vector = numpy.asarray(token[1:], "float32")
 
                 # The words in spanish model text are ordered from most frequent to least frequent
@@ -53,13 +54,12 @@ class Model:
         print("word vectors loaded")
         self.vectors = vectors
         self.lang = lang
-        self.encoding = "utf-8"
 
     def validate(self, word):
         """Clean up word and find the best candidate to use"""
 
         # Strip unwanted characters
-        clean = re.sub(r"[^a-zA-ZáéíñóúüÁÉÍÑÓÚÜ\- ]+", "", word).lower().strip()
+        clean = re.sub(r"[^a-zA-ZáéíñóúüÁÉÍÑÓÚÜ]+", "", word).lower().strip()
         if len(clean) <= 1:
             return None # Word too short
 
@@ -111,6 +111,11 @@ class Model:
         for i in range(len(words)):
             inner = {}
             word1 = words[i]
+            
+            # Skip if word1 already exists in the dictionary
+            if word1 in outer:
+                continue
+            
             word1_validated = words_validated[i]
             for j in range(i+1, len(words)):
                 word2 = words[j]
@@ -125,6 +130,10 @@ class Model:
 
             outer[word1] = inner
 
+        # Only take the first 7 valid words to compute the average semantic distance
+        if len(distances) > 7:
+            distances = distances[:7]
+            
         score = 0 if len(distances) == 0 else int((sum(distances) / len(distances))*100)
 
         # Return the DAT score (average semantic distance multiplied by 100)

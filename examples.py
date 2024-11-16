@@ -7,7 +7,6 @@ import pandas as pd
 INPUT_CSV_DELIMITER = ','
 OUTPUT_CSV_DELIMITER = ','
 
-
 def distance_matrix(task_name):
     # choose language: you should write it in the terminal and then press enter
     lang = input("Choose a language. Please type EN or ES, then press enter: ")
@@ -19,14 +18,21 @@ def distance_matrix(task_name):
         raise Exception("lang should be either EN or ES")
 
     # read input csv
+    print(f'loading input/{fname}.csv')
     path = 'input/' + fname + '.csv'
     df = pd.read_csv(path, delimiter=INPUT_CSV_DELIMITER)
+    
+    first_word_index = 1
+    columns_to_select = ['subject', 'Block', 'Trial'] + [f'FF{i}.text' for i in range(1, 21)]
+    
+    if task_name == "FF":
+        df = df[columns_to_select]
+        first_word_index = 3
+        
     num_rows = len(df.index)
     num_cols = len(df.columns)
-    print(f'loading input/{fname}.csv')
     print('number of columns: ', len(df.columns))
     print('number of rows: ', num_rows)
-    print(df.to_string())
 
     # load model
     print('loading model...')
@@ -47,10 +53,13 @@ def distance_matrix(task_name):
 
     # a list of list to store FF values
     ff_values = []
-
+    
+    # a list of all the individual word scores
+    all_individual_dfs = []
+    
     for i in range(num_rows):
-        row_id = df.iloc[i, 0]
-        input_words = df.iloc[i, 1:].to_list()
+        id = df.iloc[i, 0]
+        input_words = df.iloc[i, first_word_index:].to_list()
 
         # get average scores number, scores dict, and invalid words of the current participant
         total_scores, scores_dict, invalid_words = model.dat(input_words)
@@ -61,10 +70,10 @@ def distance_matrix(task_name):
         individual_df = pd.DataFrame([i, j, v]
                                      for i in scores_dict.keys()
                                      for j, v in scores_dict[i].items())
-        individual_df.columns = ['word1', 'word2', 'cosine distance * 100']
+        individual_df.columns = ['word1', 'word2', 'cosine distance']
 
         # save the normal word pair scores table
-        individual_df.to_csv(normal_dir + str(row_id) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+        individual_df.to_csv(normal_dir + str(i) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
 
         # output a pivot table just as the figures shown in the Olson paper
         individual_df_pivot = pd.DataFrame(columns=input_words, index=input_words)
@@ -81,11 +90,32 @@ def distance_matrix(task_name):
             individual_df_pivot[word1] = col
 
         # save the scores in a pivot table
-        individual_df_pivot.to_csv(pivot_dir + str(row_id) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
+        individual_df_pivot.to_csv(pivot_dir + str(i) + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
 
         # calculate ff value
         ff_value = individual_df_pivot.mean(axis=1, numeric_only=True).round(3).to_list()
         ff_values.append(ff_value)
+        
+        # Add subject, block, trial
+        if task_name == "FF":
+            individual_df['subject'] = df.iloc[i, 0]
+            individual_df['block'] = df.iloc[i, 1]
+            individual_df['trial'] = df.iloc[i, 2]
+            individual_df = individual_df[['subject', 'block', 'trial', 'word1', 'word2', 'cosine distance']]
+        
+        else:
+            # using row_id here for now since the input file doesn't have subject, block, trial
+            individual_df['id'] = id
+            individual_df = individual_df[['id', 'word1', 'word2', 'cosine distance']]
+        
+        # append to the list
+        all_individual_dfs.append(individual_df)
+    
+    # concatenate all individual dataframes into one
+    combined_df = pd.concat(all_individual_dfs, ignore_index=True)
+
+    # save the combined dataframe to a single CSV file
+    combined_df.to_csv(output_dir + fname +'_words.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding, index=False)
 
     if task_name == "DAT":
         # create the DAT overview of all the candidates.
@@ -100,23 +130,31 @@ def distance_matrix(task_name):
 
     else:
         # create FF serial flow for all the candidates
-        ff_lists = []
-        index = []
+        rows = []
         for i in range(num_rows):
-            row_id = df.iloc[i, 0]
-            input_words = df.iloc[i, 1:].to_list()
-            ff_lists.append(input_words+["WORD COUNT", "NAs"])
-            index.append(str(row_id))
-            ff_lists.append(ff_values[i]+[len(input_words), invalid_word_column_values[i]])
-            index.append(math.nan)
-            ff_lists.append([None for _ in range(num_cols+1)])
-            index.append(math.nan)
-            ff_lists.append([None for _ in range(num_cols+1)])
-            index.append(math.nan)
+            # Original row
+            original_row = df.iloc[i, :].to_list() + [None]
+            rows.append(original_row)
+            
+            # Insert ff_values below the row
+            ff_row = [None, None, None] + ff_values[i] + [invalid_word_column_values[i]]
+            rows.append(ff_row)
+            
+            # Insert blank rows
+            rows.append([None] * len(ff_row))
 
-        df = pd.DataFrame(ff_lists, index=index, columns=[None for _ in range(num_cols+1)])
+        # Convert the updated structure back into a DataFrame
+        df = pd.DataFrame(rows, columns=df.columns.tolist() + ['invalid words'])
+        
+        # Convert decimals to integers while leaving blank values (NaN) untouched
+        df['subject'] = pd.to_numeric(df['subject'], errors='coerce').round().astype('Int64')
+        df['Block'] = pd.to_numeric(df['Block'], errors='coerce').round().astype('Int64')
+        df['Trial'] = pd.to_numeric(df['Trial'], errors='coerce').round().astype('Int64')
+
+        # Rename columns
+        df = df.rename(columns={'Block': 'block', 'Trial': 'trial'})
+
         df.to_csv(output_dir + fname + '.csv', sep=OUTPUT_CSV_DELIMITER, encoding=model.encoding)
-
     print("Done")
 
 def DAT_Task():
@@ -128,9 +166,13 @@ def FF_Task():
 
 
 if __name__ == '__main__':
-    DAT_Task()
-    # FF_Task()
-
+    task_name = input ("Enter the task name (DAT or FF): ")
+    if task_name == "DAT":
+        DAT_Task()
+    elif task_name == "FF":
+        FF_Task()
+    else:
+        print("Invalid task name. Please enter either 'DAT' or 'FF'.")
 
 '''
 # Compound words are translated into words found in the model

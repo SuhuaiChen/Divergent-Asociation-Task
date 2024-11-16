@@ -13,5 +13,8 @@ output/DAT_Eng/
 output/DAT_Spa/
 output/FF_Eng/
 output/FF_Spa/
+archive/
 
 try_spark.py
+
+**/**.xlsx
