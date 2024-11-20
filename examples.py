@@ -160,10 +160,8 @@ def distance_matrix(task_name):
 def DAT_Task():
     distance_matrix(task_name="DAT")
 
-
 def FF_Task():
     distance_matrix(task_name="FF")
-
 
 if __name__ == '__main__':
     task_name = input ("Enter the task name (DAT or FF): ")
@@ -174,25 +172,36 @@ if __name__ == '__main__':
     else:
         print("Invalid task name. Please enter either 'DAT' or 'FF'.")
 
-'''
-# Compound words are translated into words found in the model
-print(model.validate("cul de sac")) # cul-de-sac
+    # model = dat.Model(lang="ES")
+    # v1 = model.validate("gato")
+    
+    # v2 = model.validate("gato y perro")
+    # v3 = model.validate("lata de soda")
+    # print(v1)
+    # print(v2)
+    # print(v3)
+    # print(model.distance(v1, v2))
+    # print(model.distance(v1, v3))
 
-# Compute the cosine distance between 2 words (0 to 2)
-print(model.distance("cat", "dog")) # 0.1983
-print(model.distance("cat", "thimble")) # 0.8787
+    '''
+    # Compound words are translated into words found in the model
+    print(model.validate("cul de sac")) # cul-de-sac
 
-# Compute the DAT score between 2 words (average cosine distance * 100)
-print(model.dat(["cat", "dog"], 2)) # 19.83
-print(model.dat(["cat", "thimble"], 2)) # 87.87
+    # Compute the cosine distance between 2 words (0 to 2)
+    print(model.distance("cat", "dog")) # 0.1983
+    print(model.distance("cat", "thimble")) # 0.8787
 
-# Word examples (Figure 1 in paper)
-low = ["arm", "eyes", "feet", "hand", "head", "leg", "body"]
-average = ["bag", "bee", "burger", "feast", "office", "shoes", "tree"]
-high = ["hippo", "jumper", "machinery", "prickle", "tickets", "tomato", "violin"]
+    # Compute the DAT score between 2 words (average cosine distance * 100)
+    print(model.dat(["cat", "dog"], 2)) # 19.83
+    print(model.dat(["cat", "thimble"], 2)) # 87.87
 
-# Compute the DAT score (transformed average cosine distance of first 7 valid words)
-print(model.dat(low)) # 50
-print(model.dat(average)) # 78
-print(model.dat(high)) # 95
-'''
+    # Word examples (Figure 1 in paper)
+    low = ["arm", "eyes", "feet", "hand", "head", "leg", "body"]
+    average = ["bag", "bee", "burger", "feast", "office", "shoes", "tree"]
+    high = ["hippo", "jumper", "machinery", "prickle", "tickets", "tomato", "violin"]
+
+    # Compute the DAT score (transformed average cosine distance of first 7 valid words)
+    print(model.dat(low)) # 50
+    print(model.dat(average)) # 78
+    print(model.dat(high)) # 95
+    '''

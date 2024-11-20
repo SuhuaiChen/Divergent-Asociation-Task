@@ -3,7 +3,9 @@ a quick and simple measure of creativity"""
 
 import math
 import re
-import numpy
+import numpy as np
+from spacy.lang.en.stop_words import STOP_WORDS as EN_STOP_WORDS
+from spacy.lang.es.stop_words import STOP_WORDS as ES_STOP_WORDS
 import scipy.spatial.distance
 from tqdm import tqdm
 
@@ -16,12 +18,17 @@ class Model:
             model = "model/glove.840B.300d.txt"
             # dictionary = "model/words.txt"
             self.encoding = "utf-8"
+            self.stopwords = EN_STOP_WORDS | {'use', 'thing', 'things'}
+            
         elif lang == "ES":
             model = "model/SBW-vectors-300-min5.txt"
             # dictionary = "model/spanishWords.txt"
             self.encoding = "utf-8"
+            self.stopwords = ES_STOP_WORDS | {'usar', 'uso','usa', 'usan', 'cosa', 'cosas'}
         else:
             raise Exception("Only EN and ES are supported")
+        
+        print("stopwords:", self.stopwords)
 
         # Keep unique words matching pattern from file
         # The diccionary was used to make sure that the words are from that language. However, it tured
@@ -44,7 +51,7 @@ class Model:
                 #     # only applying the dictionary filter on the English words because I haven't found a complete spanish dictionary
                 #     # for example the current spanish dictionary does not have ojo and computadora
                 #     continue
-                vector = numpy.asarray(token[1:], "float32")
+                vector = np.asarray(token[1:], "float32")
 
                 # The words in spanish model text are ordered from most frequent to least frequent
                 # We only use the most frequent word if there are duplicate words
@@ -55,34 +62,32 @@ class Model:
         self.vectors = vectors
         self.lang = lang
 
-    def validate(self, word):
-        """Clean up word and find the best candidate to use"""
+    def validate(self, candidate):
+        """Clean up words in a candidate and compute mean vector if necessary"""
 
-        # Strip unwanted characters
-        clean = re.sub(r"[^a-zA-ZáéíñóúüÁÉÍÑÓÚÜ]+", "", word).lower().strip()
-        if len(clean) <= 1:
-            return None # Word too short
+        # Strip unwanted characters from the candidate
+        clean_phrase = re.sub(r"[^a-zA-ZáéíñóúüÁÉÍÑÓÚÜ\s-]+", "", candidate).lower().strip()
+        if len(clean_phrase) <= 0:
+            return None  # Empty word
 
-        # Generate candidates for possible compound words
-        # "valid" -> ["valid"]
-        # "cul de sac" -> ["cul-de-sac", "culdesac"]
-        # "top-hat" -> ["top-hat", "tophat"]
-        candidates = [clean]
-        if " " in clean:
-            candidates.append(re.sub(r" +", "-", clean))
-            candidates.append(re.sub(r" +", "", clean))
-        else:
-            candidates.append(clean)
-            if "-" in clean:
-                candidates.append(re.sub(r"-+", "", clean))
-        for cand in candidates:
-            if cand in self.vectors:
-                return cand # Return first word that is in model
-        return None # Could not find valid word
+        words = clean_phrase.split()
+        words = [word for word in words if word not in self.stopwords]
+        
+        valid_vectors = []
+        
+        for word in words:
+            clean_word = word.strip()
+            if clean_word in self.vectors:
+                valid_vectors.append(self.vectors[clean_word])
 
-    def distance(self, word1, word2):
-        """Compute cosine distance (0 to 2) between two words"""
-        return round(float(scipy.spatial.distance.cosine(self.vectors.get(word1), self.vectors.get(word2))), 3)
+        if valid_vectors:
+            # Compute mean pooling for candidate
+            return np.mean(valid_vectors, axis=0)
+        return None  # No valid words found in the candidate
+
+    def distance(self, vec1, vec2):
+        """Compute cosine distance (0 to 2) between two vectors"""
+        return round(float(scipy.spatial.distance.cosine(vec1, vec2)), 3)
 
     def dat(self, words):
 
@@ -97,7 +102,7 @@ class Model:
         words_validated = []
         for word in words:
             valid = self.validate(word)
-            if valid:
+            if valid is not None:
                 words_validated.append(valid)
             else:
                 words_validated.append(word)
